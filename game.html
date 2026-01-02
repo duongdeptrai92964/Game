@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GALAGA - Space Shooter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+        }
+
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background: #000;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .screen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        .screen-overlay h1 {
+            font-size: 64px;
+            margin-bottom: 30px;
+            color: #ff0;
+            text-shadow: 0 0 20px #ff0;
+        }
+
+        .screen-overlay button {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 24px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            background: #f00;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .screen-overlay button:hover {
+            background: #fff;
+            color: #f00;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .controls {
+            color: #0ff;
+            font-size: 18px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Start Screen -->
+    <div class="screen-overlay" id="startScreen">
+        <h1>GALAGA</h1>
+        <div class="controls">
+            <p>← → ↑ ↓: DI CHUYỂN | TỰ ĐỘNG BẮN | P: TẠM DỪNG</p>
+        </div>
+        <button id="startBtn">START</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div class="screen-overlay hidden" id="gameOverScreen">
+        <h1 style="color: #f00;">GAME OVER</h1>
+        <div style="margin: 20px 0; font-size: 24px; color: #0ff;">
+            <p>SCORE: <span id="finalScore">0</span></p>
+            <p>STAGE: <span id="finalStage">0</span></p>
+        </div>
+        <button id="restartBtn">RESTART</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 800;
+        canvas.height = 600;
+
+        // Game state
+        const game = {
+            score: 0,
+            highScore: 0,
+            stage: 1,
+            lives: 3,
+            isPaused: false,
+            isGameOver: false,
+            isPlaying: false,
+            screenShake: 0,
+            bossActive: false,
+            currentBoss: null,
+            isWaveTransitioning: false // Ngăn stage tăng nhiều lần
+        };
+
+        // Player
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height - 60,
+            width: 32,
+            height: 32,
+            speed: 4,
+            moveLeft: false,
+            moveRight: false,
+            moveUp: false,
+            moveDown: false,
+            autoFire: true,
+            fireRate: 250,
+            lastShootTime: 0,
+            // Power-ups
+            hasShield: false,
+            shieldHits: 0,
+            shieldMaxHits: 10,
+            shieldEndTime: 0,
+            hasTripleShot: false,
+            tripleShotEndTime: 0 // Triple shot cũng có thời hạn 10s
+        };
+
+        let bullets = [];
+        let enemies = [];
+        let enemyBullets = [];
+        let explosions = [];
+        let stars = [];
+        let powerUps = []; // Power-ups rơi xuống
+
+        // Create stars
+        for (let i = 0; i < 80; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                speed: Math.random() * 1.5 + 0.3,
+                size: Math.random() < 0.5 ? 1 : 2
+            });
+        }
+
+        // Enemy types (Galaga style)
+        const enemyTypes = [
+            { type: 'green', health: 1, points: 50, color1: '#0f0', color2: '#4f4' },
+            { type: 'blue', health: 2, points: 80, color1: '#00f', color2: '#88f' },
+            { type: 'red', health: 2, points: 100, color1: '#f00', color2: '#f88' },
+            { type: 'yellow', health: 3, points: 150, color1: '#ff0', color2: '#ff8' },
+            { type: 'boss', health: 5, points: 300, color1: '#f0f', color2: '#f8f' }
+        ];
+
+        // Controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') player.moveLeft = true;
+            if (e.key === 'ArrowRight') player.moveRight = true;
+            if (e.key === 'ArrowUp') player.moveUp = true;
+            if (e.key === 'ArrowDown') player.moveDown = true;
+            if (e.key === 'p' || e.key === 'P') togglePause();
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') player.moveLeft = false;
+            if (e.key === 'ArrowRight') player.moveRight = false;
+            if (e.key === 'ArrowUp') player.moveUp = false;
+            if (e.key === 'ArrowDown') player.moveDown = false;
+        });
+
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            startGame();
+        });
+
+        function startGame() {
+            game.score = 0;
+            game.stage = 1;
+            game.lives = 3;
+            game.isPaused = false;
+            game.isGameOver = false;
+            game.isPlaying = true;
+
+            player.x = canvas.width / 2;
+            bullets = [];
+            enemies = [];
+            enemyBullets = [];
+            explosions = [];
+
+            document.getElementById('startScreen').classList.add('hidden');
+            spawnWave();
+            gameLoop();
+        }
+
+        function spawnWave() {
+            enemies = [];
+
+            // Boss wave mỗi 10 stage
+            if (game.stage % 10 === 0) {
+                console.log(`🔥 BOSS WAVE ${game.stage}!`);
+
+                const bossLevel = Math.floor(game.stage / 10); // Boss level (1, 2, 3...)
+
+                // Boss tăng size theo level
+                const bossSize = 64 + bossLevel * 16; // Wave 10: 80, Wave 20: 96, Wave 30: 112
+
+                // Boss máu tăng nhiều hơn: 30, 50, 80, 120, 170...
+                const bossHealth = 20 + bossLevel * 20 + (bossLevel - 1) * 10;
+                const bossPoints = 1000 * bossLevel;
+
+                const boss = {
+                    x: canvas.width / 2,
+                    y: 100,
+                    startX: canvas.width / 2,
+                    startY: 100,
+                    width: bossSize,
+                    height: bossSize,
+                    angle: 0,
+                    movePhase: 'boss',
+                    isBoss: true,
+                    bossLevel: bossLevel, // Để vẽ boss to hơn
+                    emoji: '👾',
+                    health: bossHealth,
+                    maxHealth: bossHealth,
+                    speed: 0.8,
+                    points: bossPoints,
+                    color1: '#f0f',
+                    color2: '#f8f',
+                    shootTimer: 0
+                };
+
+                enemies.push(boss);
+
+                // Trigger screen shake và set boss active
+                game.screenShake = 30;
+                game.bossActive = true;
+                game.currentBoss = boss;
+
+                console.log(`👾 Boss Lv.${bossLevel}: ${bossHealth} HP, ${bossPoints} points, Size: ${bossSize}`);
+                return;
+            }
+
+            // Normal waves
+            const totalEnemies = 6 + (game.stage - 1) * 3;
+
+            // Đơn giản hóa: xếp hàng ngang với tối đa 10 cột
+            const cols = Math.min(totalEnemies, 10);
+            const rows = Math.ceil(totalEnemies / cols);
+
+            const spacing = 50;
+            const startX = (canvas.width - (cols * spacing)) / 2 + spacing / 2;
+            const startY = 60;
+
+            console.log(`Stage ${game.stage}: Spawning ${totalEnemies} enemies (${rows} rows x ${cols} cols)`);
+
+            let enemyCount = 0;
+            for (let row = 0; row < rows && enemyCount < totalEnemies; row++) {
+                for (let col = 0; col < cols && enemyCount < totalEnemies; col++) {
+                    let typeIndex;
+                    if (row === 0) typeIndex = 3; // Yellow (top row)
+                    else if (row <= 2) typeIndex = 2; // Red
+                    else if (row <= 4) typeIndex = 1; // Blue
+                    else typeIndex = 0; // Green
+
+                    // Tăng độ khó theo stage
+                    const type = enemyTypes[Math.min(typeIndex + Math.floor(game.stage / 3), enemyTypes.length - 1)];
+
+                    enemies.push({
+                        x: startX + col * spacing,
+                        y: startY + row * spacing,
+                        startX: startX + col * spacing,
+                        startY: startY + row * spacing,
+                        width: 32,
+                        height: 32,
+                        angle: (col + row) * 0.5,
+                        movePhase: 'idle',
+                        ...type,
+                        maxHealth: type.health,
+                        shootTimer: Math.random() * 400 // Tăng delay bắn (chậm hơn)
+                    });
+
+                    enemyCount++;
+                }
+            }
+
+            console.log(`Actually spawned: ${enemies.length} enemies`);
+        }
+
+        function shootBullet() {
+            if (player.hasTripleShot) {
+                // Bắn 3 đường
+                bullets.push({
+                    x: player.x,
+                    y: player.y - 16,
+                    width: 3,
+                    height: 12,
+                    speed: 10
+                });
+                bullets.push({
+                    x: player.x - 15,
+                    y: player.y - 10,
+                    width: 3,
+                    height: 12,
+                    speed: 10,
+                    vx: -1 // Bắn chéo trái
+                });
+                bullets.push({
+                    x: player.x + 15,
+                    y: player.y - 10,
+                    width: 3,
+                    height: 12,
+                    speed: 10,
+                    vx: 1 // Bắn chéo phải
+                });
+            } else {
+                // Bắn 1 đường bình thường
+                bullets.push({
+                    x: player.x,
+                    y: player.y - 16,
+                    width: 3,
+                    height: 12,
+                    speed: 10
+                });
+            }
+        }
+
+        function updatePlayer() {
+            if (player.moveLeft && player.x > 20) {
+                player.x -= player.speed;
+            }
+            if (player.moveRight && player.x < canvas.width - 20) {
+                player.x += player.speed;
+            }
+            if (player.moveUp && player.y > canvas.height / 2) { // Chỉ lên đến giữa màn hình
+                player.y -= player.speed;
+            }
+            if (player.moveDown && player.y < canvas.height - 40) {
+                player.y += player.speed;
+            }
+
+            // Auto-fire
+            const now = Date.now();
+            if (player.autoFire && now - player.lastShootTime > player.fireRate) {
+                shootBullet();
+                player.lastShootTime = now;
+            }
+
+            // Check shield timeout
+            if (player.hasShield && now > player.shieldEndTime) {
+                player.hasShield = false;
+            }
+
+            // Check triple shot timeout
+            if (player.hasTripleShot && now > player.tripleShotEndTime) {
+                player.hasTripleShot = false;
+            }
+        }
+
+        function updatePowerUps() {
+            powerUps = powerUps.filter(p => {
+                p.y += p.speed;
+                return p.y < canvas.height + 20;
+            });
+        }
+
+        function updateBullets() {
+            bullets = bullets.filter(b => {
+                b.y -= b.speed;
+                if (b.vx) b.x += b.vx * 3; // Di chuyển ngang nếu có vx
+                return b.y > -20 && b.x > 0 && b.x < canvas.width;
+            });
+        }
+
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                // Boss di chuyển và bắn khác
+                if (enemy.isBoss) {
+                    enemy.angle += 0.03;
+                    enemy.x = enemy.startX + Math.sin(enemy.angle) * 150;
+
+                    // Boss bắn nhanh và nhiều viên
+                    enemy.shootTimer++;
+                    if (enemy.shootTimer > 50) {
+                        enemy.shootTimer = 0;
+                        // Bắn 3 viên cùng lúc
+                        for (let i = -1; i <= 1; i++) {
+                            enemyBullets.push({
+                                x: enemy.x + i * 25,
+                                y: enemy.y + 32,
+                                width: 4,
+                                height: 12,
+                                speed: 5,
+                                color: '#f0f'
+                            });
+                        }
+                    }
+                    return;
+                }
+
+                // Normal enemies
+                enemy.angle += 0.02;
+                enemy.x = enemy.startX + Math.sin(enemy.angle) * 30;
+                enemy.y = enemy.startY + Math.cos(enemy.angle * 0.5) * 10;
+
+                // Enemy shooting (giảm tần suất bắn)
+                enemy.shootTimer++;
+                if (enemy.shootTimer > 300 + Math.random() * 200) { // Tăng từ 150->300
+                    enemy.shootTimer = 0;
+                    enemyBullets.push({
+                        x: enemy.x,
+                        y: enemy.y + 16,
+                        width: 3,
+                        height: 10,
+                        speed: 4
+                    });
+                }
+            });
+        }
+
+        function updateEnemyBullets() {
+            enemyBullets = enemyBullets.filter(b => {
+                b.y += b.speed;
+                return b.y < canvas.height + 20;
+            });
+        }
+
+        function checkCollisions() {
+            // Bullet vs Enemy
+            bullets.forEach((bullet, bIdx) => {
+                enemies.forEach((enemy, eIdx) => {
+                    if (collision(bullet, enemy)) {
+                        enemy.health--;
+                        bullets.splice(bIdx, 1);
+
+                        if (enemy.health <= 0) {
+                            game.score += enemy.points;
+                            createExplosion(enemy.x, enemy.y, enemy.color1);
+
+                            // 5% chance drop power-up
+                            if (Math.random() < 0.05) {
+                                const powerUpType = Math.random() < 0.5 ? 'shield' : 'tripleshot';
+                                powerUps.push({
+                                    x: enemy.x,
+                                    y: enemy.y,
+                                    type: powerUpType,
+                                    width: 20,
+                                    height: 20,
+                                    speed: 2
+                                });
+                            }
+
+                            enemies.splice(eIdx, 1);
+
+                            // Nếu giết boss, tắt boss UI
+                            if (enemy.isBoss) {
+                                game.bossActive = false;
+                                game.currentBoss = null;
+                                game.screenShake = 20;
+                            }
+                        }
+                    }
+                });
+            });
+
+            // Enemy bullet vs Player
+            enemyBullets.forEach((bullet, idx) => {
+                if (collision(bullet, player)) {
+                    enemyBullets.splice(idx, 1);
+
+                    // Check shield
+                    if (player.hasShield && player.shieldHits < player.shieldMaxHits) {
+                        player.shieldHits++;
+                        createExplosion(player.x, player.y, '#0ff');
+                        if (player.shieldHits >= player.shieldMaxHits) {
+                            player.hasShield = false;
+                        }
+                    } else {
+                        playerHit();
+                    }
+                }
+            });
+
+            // Power-up vs Player
+            powerUps.forEach((powerUp, idx) => {
+                if (collision(powerUp, player)) {
+                    powerUps.splice(idx, 1);
+
+                    if (powerUp.type === 'shield') {
+                        player.hasShield = true;
+                        player.shieldHits = 0;
+                        player.shieldEndTime = Date.now() + 10000; // 10s
+                    } else if (powerUp.type === 'tripleshot') {
+                        player.hasTripleShot = true;
+                        player.tripleShotEndTime = Date.now() + 10000; // 10s
+                    }
+
+                    createExplosion(powerUp.x, powerUp.y, '#ff0');
+                }
+            });
+
+            // Check wave complete
+            if (enemies.length === 0 && game.isPlaying && !game.isWaveTransitioning) {
+                game.isWaveTransitioning = true;
+                game.stage++;
+                setTimeout(() => {
+                    spawnWave();
+                    game.isWaveTransitioning = false;
+                }, 2000);
+            }
+        }
+
+        function collision(obj1, obj2) {
+            return obj1.x < obj2.x + obj2.width &&
+                obj1.x + obj1.width > obj2.x &&
+                obj1.y < obj2.y + obj2.height &&
+                obj1.y + obj1.height > obj2.y;
+        }
+
+        function playerHit() {
+            game.lives--;
+            createExplosion(player.x, player.y, '#0ff');
+
+            if (game.lives <= 0) {
+                gameOver();
+            }
+        }
+
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 8; i++) {
+                explosions.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 30,
+                    color: color
+                });
+            }
+        }
+
+        function updateExplosions() {
+            explosions = explosions.filter(exp => {
+                exp.x += exp.vx;
+                exp.y += exp.vy;
+                exp.life--;
+                return exp.life > 0;
+            });
+        }
+
+        function togglePause() {
+            if (!game.isPlaying) return;
+            game.isPaused = !game.isPaused;
+        }
+
+        // Draw player spaceship (Improved sleek design)
+        function drawPlayer(x, y) {
+            const p = 2; // pixel size
+            ctx.save();
+            ctx.translate(Math.floor(x), Math.floor(y));
+
+            // Main body - Sleek silver/white
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(-2 * p, -8 * p, 4 * p, 12 * p); // Main fuselage
+
+            // Cockpit - Red/Orange glass
+            ctx.fillStyle = '#f44';
+            ctx.fillRect(-2 * p, -9 * p, 4 * p, 2 * p);
+            ctx.fillStyle = '#f88';
+            ctx.fillRect(-p, -9 * p, 2 * p, p);
+
+            // Wings - Cyan/Aqua (classic Galaga style)
+            ctx.fillStyle = '#0ff';
+            // Main wings
+            ctx.fillRect(-7 * p, -2 * p, 14 * p, 4 * p);
+            ctx.fillRect(-8 * p, 0, 16 * p, 2 * p);
+
+            // Wing tips - Yellow accent
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(-9 * p, p, 2 * p, p);
+            ctx.fillRect(7 * p, p, 2 * p, p);
+
+            // Engine core - Dark
+            ctx.fillStyle = '#444';
+            ctx.fillRect(-3 * p, 3 * p, 2 * p, p);
+            ctx.fillRect(p, 3 * p, 2 * p, p);
+
+            // Engine glow (animated)
+            const glowIntensity = 0.5 + Math.sin(Date.now() / 80) * 0.5;
+            ctx.fillStyle = `rgba(255, 100, 0, ${glowIntensity})`;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#ff6600';
+            ctx.fillRect(-3 * p, 4 * p, 2 * p, 2 * p);
+            ctx.fillRect(p, 4 * p, 2 * p, 2 * p);
+
+            // Center line detail - White
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-p, -6 * p, 2 * p, 8 * p);
+
+            // Nose cone - Yellow
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(-p, -10 * p, 2 * p, p);
+
+            ctx.restore();
+        }
+
+        function gameOver() {
+            game.isGameOver = true;
+            game.isPlaying = false;
+            if (game.score > game.highScore) game.highScore = game.score;
+
+            document.getElementById('finalScore').textContent = game.score;
+            document.getElementById('finalStage').textContent = game.stage;
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+        }
+
+        // Drawing functions (Pixel art style)
+        function drawPlayer(x, y) {
+            const p = 2; // pixel size
+            ctx.save();
+            ctx.translate(Math.floor(x), Math.floor(y));
+
+            // Red top
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(-2 * p, -8 * p, 4 * p, 2 * p);
+
+            // Cyan main body
+            ctx.fillStyle = '#0ff';
+            ctx.fillRect(-2 * p, -6 * p, 4 * p, 6 * p);
+            ctx.fillRect(-4 * p, -3 * p, 2 * p, 3 * p);
+            ctx.fillRect(2 * p, -3 * p, 2 * p, 3 * p);
+
+            // Yellow cockpit
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(-p, -5 * p, 2 * p, 2 * p);
+
+            // Wings
+            ctx.fillStyle = '#0ff';
+            ctx.fillRect(-6 * p, 0, 12 * p, 2 * p);
+            ctx.fillRect(-7 * p, 2 * p, 2 * p, 2 * p);
+            ctx.fillRect(5 * p, 2 * p, 2 * p, 2 * p);
+
+            ctx.restore();
+        }
+
+        function drawEnemy(enemy) {
+            const p = enemy.isBoss ? (3 + (enemy.bossLevel || 1)) : 2; // Boss càng cao càng to
+            ctx.save();
+            ctx.translate(Math.floor(enemy.x), Math.floor(enemy.y));
+
+            const c1 = enemy.color1;
+            const c2 = enemy.color2;
+
+            // Boss design khác biệt
+            if (enemy.isBoss) {
+                // Boss lớn và đáng sợ hơn
+                ctx.fillStyle = c1;
+                // Head
+                ctx.fillRect(-4 * p, -6 * p, 8 * p, 6 * p);
+
+                // Eyes
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(-3 * p, -4 * p, 2 * p, 2 * p);
+                ctx.fillRect(p, -4 * p, 2 * p, 2 * p);
+
+                // Body
+                ctx.fillStyle = c2;
+                ctx.fillRect(-5 * p, 0, 10 * p, 4 * p);
+
+                // Arms
+                ctx.fillStyle = c1;
+                ctx.fillRect(-7 * p, p, 2 * p, 3 * p);
+                ctx.fillRect(5 * p, p, 2 * p, 3 * p);
+
+                // Legs
+                ctx.fillRect(-4 * p, 4 * p, 2 * p, 2 * p);
+                ctx.fillRect(2 * p, 4 * p, 2 * p, 2 * p);
+
+                // Health bar (always show for boss)
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(-30, -30, 60, 4);
+                ctx.fillStyle = '#0f0';
+                ctx.fillRect(-30, -30, 60 * (enemy.health / enemy.maxHealth), 4);
+
+                // Health text
+                ctx.font = 'bold 12px Courier';
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${enemy.health}/${enemy.maxHealth}`, 0, -36);
+
+                ctx.restore();
+                return;
+            }
+
+            // Normal enemy (Butterfly/insect shape - Galaga style)
+            // Body
+            ctx.fillStyle = c1;
+            ctx.fillRect(-p, -4 * p, 2 * p, 8 * p);
+
+            // Wings
+            ctx.fillStyle = c2;
+            // Left wing
+            ctx.fillRect(-5 * p, -3 * p, 3 * p, 2 * p);
+            ctx.fillRect(-6 * p, -p, 4 * p, 2 * p);
+            ctx.fillRect(-5 * p, p, 3 * p, 2 * p);
+
+            // Right wing
+            ctx.fillRect(2 * p, -3 * p, 3 * p, 2 * p);
+            ctx.fillRect(2 * p, -p, 4 * p, 2 * p);
+            ctx.fillRect(2 * p, p, 3 * p, 2 * p);
+
+            // Antennae
+            ctx.fillStyle = c1;
+            ctx.fillRect(-2 * p, -6 * p, p, 2 * p);
+            ctx.fillRect(p, -6 * p, p, 2 * p);
+
+            // Eyes
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-2 * p, -3 * p, p, p);
+            ctx.fillRect(p, -3 * p, p, p);
+
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Screen shake effect
+            ctx.save();
+            if (game.screenShake > 0) {
+                const shakeX = (Math.random() - 0.5) * game.screenShake;
+                const shakeY = (Math.random() - 0.5) * game.screenShake;
+                ctx.translate(shakeX, shakeY);
+                game.screenShake--; // Giảm dần shake
+            }
+
+            // Stars
+            stars.forEach(star => {
+                star.y += star.speed;
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+                ctx.fillStyle = star.size === 2 ? '#fff' : '#888';
+                ctx.fillRect(Math.floor(star.x), Math.floor(star.y), star.size, star.size);
+            });
+
+            // UI
+            ctx.font = 'bold 20px Courier';
+            ctx.fillStyle = '#f00';
+            ctx.textAlign = 'left';
+            ctx.fillText('1UP', 30, 30);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(String(game.score).padStart(6, '0'), 30, 50);
+
+            ctx.fillStyle = '#f00';
+            ctx.textAlign = 'center';
+            ctx.fillText('HI-SCORE', canvas.width / 2, 30);
+            ctx.fillStyle = '#0ff';
+            ctx.fillText(String(game.highScore).padStart(6, '0'), canvas.width / 2, 50);
+
+            ctx.fillStyle = '#f00';
+            ctx.textAlign = 'right';
+            ctx.fillText('STAGE', canvas.width - 70, 30);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(game.stage, canvas.width - 30, 50);
+
+            // Lives
+            for (let i = 0; i < game.lives; i++) {
+                drawPlayer(30 + i * 40, canvas.height - 25);
+            }
+
+            // Player
+            drawPlayer(player.x, player.y);
+
+            // Shield circle effect
+            if (player.hasShield) {
+                ctx.save();
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#0ff';
+
+                // Animated pulsing effect
+                const pulseSize = 3 + Math.sin(Date.now() / 100) * 2;
+                ctx.lineWidth = pulseSize;
+
+                ctx.beginPath();
+                ctx.arc(Math.floor(player.x), Math.floor(player.y), 30, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Shield hits remaining text
+                ctx.font = 'bold 12px Courier';
+                ctx.fillStyle = '#0ff';
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 5;
+                ctx.fillText(`🛡️${player.shieldMaxHits - player.shieldHits}`, player.x, player.y - 35);
+
+                ctx.restore();
+            }
+
+            // Triple shot indicator
+            if (player.hasTripleShot) {
+                ctx.save();
+                ctx.font = 'bold 12px Courier';
+                ctx.fillStyle = '#ff0';
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = '#ff0';
+                ctx.fillText('⚡3X', player.x, player.y + 40);
+                ctx.restore();
+            }
+
+            // Bullets
+            ctx.fillStyle = '#fff';
+            bullets.forEach(b => {
+                ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y), 3, 12);
+            });
+
+            // Enemies
+            enemies.forEach(drawEnemy);
+
+            // Enemy bullets
+            ctx.fillStyle = '#f0f';
+            enemyBullets.forEach(b => {
+                ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y), 3, 10);
+            });
+
+            // Explosions
+            explosions.forEach(exp => {
+                ctx.fillStyle = exp.color;
+                ctx.globalAlpha = exp.life / 30;
+                ctx.fillRect(Math.floor(exp.x - 2), Math.floor(exp.y - 2), 4, 4);
+                ctx.globalAlpha = 1;
+            });
+
+            // Power-ups
+            powerUps.forEach(p => {
+                ctx.save();
+                ctx.translate(Math.floor(p.x), Math.floor(p.y));
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'center';
+
+                if (p.type === 'shield') {
+                    ctx.fillStyle = '#0ff';
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#0ff';
+                    ctx.fillText('🛡️', 0, 0);
+                } else if (p.type === 'tripleshot') {
+                    ctx.fillStyle = '#ff0';
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#ff0';
+                    ctx.fillText('⚡', 0, 0);
+                }
+                ctx.restore();
+            });
+
+            // Pause text
+            if (game.isPaused) {
+                ctx.font = 'bold 48px Courier';
+                ctx.fillStyle = '#ff0';
+                ctx.textAlign = 'center';
+                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+            }
+
+            ctx.restore(); // End screen shake transform
+
+            // Boss Health Bar (không bị shake)
+            if (game.bossActive && game.currentBoss) {
+                const boss = game.currentBoss;
+                const barWidth = 400;
+                const barHeight = 30;
+                const barX = (canvas.width - barWidth) / 2;
+                const barY = 80;
+
+                // Background
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(barX - 10, barY - 10, barWidth + 20, barHeight + 30);
+
+                // Boss name
+                ctx.font = 'bold 16px Courier';
+                ctx.fillStyle = '#f0f';
+                ctx.textAlign = 'center';
+                ctx.fillText(`👾 BOSS LEVEL ${boss.bossLevel} 👾`, canvas.width / 2, barY + 5);
+
+                // Health bar background
+                ctx.fillStyle = '#333';
+                ctx.fillRect(barX, barY + 15, barWidth, barHeight - 10);
+
+                // Health bar fill
+                const healthPercent = boss.health / boss.maxHealth;
+                const healthWidth = barWidth * healthPercent;
+
+                // Color gradient based on health
+                if (healthPercent > 0.6) ctx.fillStyle = '#0f0';
+                else if (healthPercent > 0.3) ctx.fillStyle = '#ff0';
+                else ctx.fillStyle = '#f00';
+
+                ctx.fillRect(barX, barY + 15, healthWidth, barHeight - 10);
+
+                // Health text
+                ctx.font = 'bold 14px Courier';
+                ctx.fillStyle = '#fff';
+                ctx.fillText(`${boss.health} / ${boss.maxHealth}`, canvas.width / 2, barY + 30);
+            }
+        }
+
+        function gameLoop() {
+            if (!game.isPlaying) return;
+
+            if (!game.isPaused) {
+                updatePlayer();
+                updateBullets();
+                updateEnemies();
+                updateEnemyBullets();
+                updateExplosions();
+                updatePowerUps();
+                checkCollisions();
+            }
+
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+
+</html>
