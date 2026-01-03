@@ -6,8 +6,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GALAGA - Space Shooter</title>
 
-    <!-- Anti-DevTools Protection -->
-    <script src="antidev.js"></script>
+
+    <!-- Anti-DevTools Protection (Inline) -->
+    <script>
+        // ANTI-TAMPERMONKEY DETECTION (MUST RUN FIRST!)
+        (function () {
+            const tm = ['GM_info', 'GM_getValue', 'GM_setValue', 'GM_deleteValue', 'GM_listValues', 'GM_addStyle', 'GM_log', 'GM_openInTab', 'GM_xmlhttpRequest', 'unsafeWindow', 'GM', 'GM_cookie'];
+            for (let i of tm) {
+                if (window[i] !== undefined || (typeof unsafeWindow !== 'undefined' && unsafeWindow[i])) {
+                    alert('⛔ CHEAT SCRIPT DETECTED!\nTamperMonkey/Greasemonkey không được phép.\nGame sẽ không hoạt động.');
+                    window.location.replace('about:blank');
+                    throw new Error('Userscript detected');
+                }
+            }
+            if (document.querySelector('script[data-tampermonkey]') || document.querySelector('script[data-greasemonkey]')) {
+                window.location.replace('about:blank');
+            }
+            // Protect critical functions
+            const oSI = window.setInterval, oST = window.setTimeout, oRAF = window.requestAnimationFrame;
+            Object.defineProperty(window, 'setInterval', { value: oSI, writable: !1, configurable: !1 });
+            Object.defineProperty(window, 'setTimeout', { value: oST, writable: !1, configurable: !1 });
+            setInterval(() => {
+                if (window.setInterval !== oSI || window.setTimeout !== oST || window.requestAnimationFrame !== oRAF) {
+                    console.error('🚨 FUNCTION OVERRIDE!');
+                    window.location.replace('about:blank');
+                }
+                // Re-check TamperMonkey
+                for (let i of tm) {
+                    if (window[i] !== undefined) {
+                        window.location.replace('about:blank');
+                    }
+                }
+            }, 1000);
+        })();
+
+        // Original anti-devtools
+        (function () { let t = !1, o = 0; function e() { if (window.eruda) return window.eruda.destroy(), delete window.eruda, !0; if (window.VConsole || window.vConsole) { try { window.vConsole?.destroy?.(), delete window.VConsole, delete window.vConsole } catch { } return !0 } const t = document.querySelectorAll('[class*="eruda"], [id*="eruda"], [class*="vconsole"], [id*="vconsole"]'); return t.length > 0 && (t.forEach(t => t.remove()), !0) } function n() { t || (t = !0, window.location.replace("about:blank")) } function l(t) { return (t.key === "F12" || t.keyCode === 123 || t.ctrlKey && t.shiftKey && (t.key === "I" || t.key === "i" || t.keyCode === 73 || t.key === "J" || t.key === "j" || t.keyCode === 74 || t.key === "C" || t.key === "c" || t.keyCode === 67) || t.ctrlKey && (t.key === "u" || t.key === "U" || t.keyCode === 85 || t.key === "s" || t.key === "S" || t.keyCode === 83) || t.metaKey && t.altKey && (t.key === "i" || t.key === "I" || t.keyCode === 73 || t.key === "j" || t.key === "J" || t.keyCode === 74 || t.key === "c" || t.key === "C" || t.keyCode === 67)) && (t.preventDefault(), t.stopPropagation(), !1) } function r(t) { return t.preventDefault(), t.stopPropagation(), !1 } function i() { const t = 160; (window.outerWidth - window.innerWidth > t || window.outerHeight - window.innerHeight > t) && (o++, o > 2 && n()) } document.addEventListener("keydown", l, !0), document.addEventListener("keyup", l, !0), document.addEventListener("contextmenu", r, !0), document.addEventListener("selectstart", r), document.addEventListener("dragstart", r), document.addEventListener("copy", r), document.addEventListener("cut", r), document.addEventListener("paste", r), window.print = () => !1, setInterval(() => { i(), e() }, 1e3), setInterval(() => { try { ["log", "debug", "info", "warn", "error", "table", "trace", "dir", "dirxml", "group", "groupCollapsed", "groupEnd", "time", "timeEnd", "timeLog", "profile", "profileEnd", "assert", "count", "countReset", "clear"].forEach(t => { console[t] = () => void 0 }) } catch { } }, 500), new MutationObserver(t => { t.forEach(t => { t.addedNodes.forEach(t => { t instanceof HTMLElement && ((t.className?.toString?.() || "").includes("eruda") || (t.className?.toString?.() || "").includes("vconsole") || t.id.includes("eruda") || t.id.includes("vconsole")) && t.remove(), t instanceof HTMLScriptElement && ((t.src || "").includes("eruda") || (t.src || "").includes("vconsole")) && t.remove() }) }) }).observe(document.documentElement, { childList: !0, subtree: !0 }); const c = document.createElement("style"); c.textContent = "*{-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}input,textarea{-webkit-user-select:text!important;-moz-user-select:text!important;-ms-user-select:text!important;user-select:text!important}", document.head.appendChild(c) })();
+    </script>
 
     <style>
         * {
@@ -253,75 +288,116 @@
             isWaveTransitioning: false // Ngăn stage tăng nhiều lần
         };
 
-        // Player (với anti-cheat protection)
-        const _playerData = {
-            x: canvas.width / 2,
-            y: canvas.height - 60,
-            width: 32,
-            height: 32,
-            speed: 4,
-            moveLeft: false,
-            moveRight: false,
-            moveUp: false,
-            moveDown: false,
-            autoFire: true,
-            fireRate: 250,
-            lastShootTime: 0,
-            // Power-ups
-            hasShield: false,
-            shieldHits: 0,
-            shieldMaxHits: 10,
-            shieldEndTime: 0,
-            hasTripleShot: false,
-            tripleShotEndTime: 0 // Triple shot cũng có thời hạn 10s
-        };
+        // ========== ADVANCED ANTI-CHEAT SYSTEM ==========
+        (function () {
+            // Private encrypted storage
+            const _secret = Math.random().toString(36).substring(7);
+            const _encrypt = (val) => val ^ 0xDEADBEEF;
+            const _decrypt = (val) => val ^ 0xDEADBEEF;
 
-        // Anti-cheat: Wrap player trong Proxy
-        const player = new Proxy(_playerData, {
-            set(target, prop, value) {
-                // Chỉ cho phép thay đổi hợp lệ
-                const allowedProps = ['x', 'y', 'moveLeft', 'moveRight', 'moveUp', 'moveDown',
-                    'hasShield', 'shieldHits', 'hasTripleShot', 'shieldEndTime',
-                    'tripleShotEndTime', 'lastShootTime'];
+            // True player data - HIDDEN in closure
+            const _realPlayerData = {
+                x: canvas.width / 2,
+                y: canvas.height - 60,
+                width: 32,
+                height: 32,
+                speed: _encrypt(4), // Encrypted
+                moveLeft: false,
+                moveRight: false,
+                moveUp: false,
+                moveDown: false,
+                autoFire: true,
+                fireRate: _encrypt(250), // Encrypted
+                lastShootTime: 0,
+                hasShield: false,
+                shieldHits: 0,
+                shieldMaxHits: _encrypt(10), // Encrypted
+                shieldEndTime: 0,
+                hasTripleShot: false,
+                tripleShotEndTime: 0
+            };
 
-                if (!allowedProps.includes(prop)) {
-                    console.warn('⚠️ Detected cheat attempt! Property manipulation blocked.');
-                    return false; // Block cheat
+            // Honeypot - fake data để catch cheater
+            window._playerData = {
+                speed: 999,
+                fireRate: 1,
+                shieldMaxHits: 999,
+                lives: 999,
+                invincible: true
+            };
+
+            // Public player interface với Proxy
+            window.player = new Proxy({}, {
+                get(target, prop) {
+                    // Decrypt khi read
+                    if (prop === 'speed') return _decrypt(_realPlayerData.speed);
+                    if (prop === 'fireRate') return _decrypt(_realPlayerData.fireRate);
+                    if (prop === 'shieldMaxHits') return _decrypt(_realPlayerData.shieldMaxHits);
+                    return _realPlayerData[prop];
+                },
+                set(target, prop, value) {
+                    // Allowed props
+                    const allowed = ['x', 'y', 'moveLeft', 'moveRight', 'moveUp', 'moveDown',
+                        'hasShield', 'shieldHits', 'hasTripleShot', 'shieldEndTime',
+                        'tripleShotEndTime', 'lastShootTime'];
+
+                    if (!allowed.includes(prop)) {
+                        console.warn('🚨 CHEAT DETECTED: Illegal property access');
+                        return false;
+                    }
+
+                    // Validate ranges
+                    if ((prop === 'x' || prop === 'y') && (value < -100 || value > 10000)) {
+                        return false;
+                    }
+
+                    _realPlayerData[prop] = value;
+                    return true;
+                },
+                has(target, prop) {
+                    return prop in _realPlayerData;
+                },
+                ownKeys(target) {
+                    return Object.keys(_realPlayerData);
+                },
+                getOwnPropertyDescriptor(target, prop) {
+                    return {
+                        enumerable: true,
+                        configurable: true
+                    };
+                }
+            });
+
+            // SUPER FAST integrity check (100ms)
+            setInterval(() => {
+                // Check encrypted values
+                if (_decrypt(_realPlayerData.speed) !== 4) {
+                    _realPlayerData.speed = _encrypt(4);
+                    console.error('⚠️ TAMPERING DETECTED: Speed reset');
+                }
+                if (_decrypt(_realPlayerData.fireRate) !== 250) {
+                    _realPlayerData.fireRate = _encrypt(250);
+                }
+                if (_decrypt(_realPlayerData.shieldMaxHits) !== 10) {
+                    _realPlayerData.shieldMaxHits = _encrypt(10);
                 }
 
-                // Giới hạn giá trị hợp lệ
-                if (prop === 'speed' && value > 4) {
-                    console.warn('⚠️ Speed hack detected!');
-                    return false;
+                // Check if someone touched honeypot
+                if (window._playerData.speed !== 999 ||
+                    window._playerData.fireRate !== 1 ||
+                    window._playerData.shieldMaxHits !== 999) {
+                    console.error('🚨 HONEYPOT TRIGGERED - Cheater detected!');
+                    // Reset honeypot
+                    window._playerData = {
+                        speed: 999,
+                        fireRate: 1,
+                        shieldMaxHits: 999,
+                        lives: 999,
+                        invincible: true
+                    };
                 }
-                if (prop === 'shieldMaxHits' && value > 10) return false;
-                if ((prop === 'x' || prop === 'y') && (value < -100 || value > 10000)) return false;
-
-                target[prop] = value;
-                return true;
-            },
-            get(target, prop) {
-                return target[prop];
-            }
-        });
-
-        // Integrity check timer
-        const _originalValues = {
-            speed: 4,
-            shieldMaxHits: 10,
-            width: 32,
-            height: 32,
-            fireRate: 250
-        };
-
-        setInterval(() => {
-            // Verify critical values
-            if (_playerData.speed !== _originalValues.speed) _playerData.speed = _originalValues.speed;
-            if (_playerData.shieldMaxHits !== _originalValues.shieldMaxHits) _playerData.shieldMaxHits = _originalValues.shieldMaxHits;
-            if (_playerData.width !== _originalValues.width) _playerData.width = _originalValues.width;
-            if (_playerData.height !== _originalValues.height) _playerData.height = _originalValues.height;
-            if (_playerData.fireRate !== _originalValues.fireRate) _playerData.fireRate = _originalValues.fireRate;
-        }, 1000); // Check mỗi giây
+            }, 100); // Check every 100ms!
+        })();
 
         let bullets = [];
         let enemies = [];
@@ -438,6 +514,47 @@
         joystickContainer.addEventListener('mousedown', handleJoystickStart);
         document.addEventListener('mousemove', handleJoystickMove);
         document.addEventListener('mouseup', handleJoystickEnd);
+
+        // Canvas click handler for pause menu buttons
+        canvas.addEventListener('click', (e) => {
+            if (!game.isPaused) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            const buttonWidth = 200;
+            const buttonHeight = 50;
+            const centerX = canvas.width / 2;
+            const buttonY1 = canvas.height / 2 + 20;
+            const buttonY2 = canvas.height / 2 + 90;
+
+            // Check Continue button
+            if (x >= centerX - buttonWidth / 2 && x <= centerX + buttonWidth / 2 &&
+                y >= buttonY1 && y <= buttonY1 + buttonHeight) {
+                togglePause();
+            }
+
+            // Check Home button
+            if (x >= centerX - buttonWidth / 2 - 110 && x <= centerX - buttonWidth / 2 - 10 &&
+                y >= buttonY2 && y <= buttonY2 + buttonHeight) {
+                // Go to home
+                game.isPaused = false;
+                game.isPlaying = false;
+                document.getElementById('gameOverScreen').classList.add('hidden');
+                document.getElementById('startScreen').classList.remove('hidden');
+            }
+
+            // Check Restart button
+            if (x >= centerX - buttonWidth / 2 + 10 && x <= centerX - buttonWidth / 2 + 110 &&
+                y >= buttonY2 && y <= buttonY2 + buttonHeight) {
+                // Restart game
+                game.isPaused = false;
+                startGame();
+            }
+        });
 
         document.getElementById('startBtn').addEventListener('click', startGame);
         document.getElementById('restartBtn').addEventListener('click', () => {
@@ -1341,12 +1458,52 @@
                 ctx.restore();
             });
 
-            // Pause text
+            // Pause menu
             if (game.isPaused) {
+                // Overlay
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Title
                 ctx.font = 'bold 48px Courier';
                 ctx.fillStyle = '#ff0';
                 ctx.textAlign = 'center';
-                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2 - 80);
+
+                // Buttons
+                const buttonWidth = 200;
+                const buttonHeight = 50;
+                const centerX = canvas.width / 2;
+                const buttonY1 = canvas.height / 2 + 20;
+                const buttonY2 = canvas.height / 2 + 90;
+
+                // Button 1: Continue (P to resume)
+                ctx.fillStyle = '#333';
+                ctx.fillRect(centerX - buttonWidth / 2, buttonY1, buttonWidth, buttonHeight);
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(centerX - buttonWidth / 2, buttonY1, buttonWidth, buttonHeight);
+                ctx.font = '20px Courier';
+                ctx.fillStyle = '#fff';
+                ctx.fillText('Tiếp tục (P)', centerX, buttonY1 + 32);
+
+                // Button 2: Home
+                ctx.fillStyle = '#333';
+                ctx.fillRect(centerX - buttonWidth / 2 - 110, buttonY2, 100, buttonHeight);
+                ctx.strokeStyle = '#f00';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(centerX - buttonWidth / 2 - 110, buttonY2, 100, buttonHeight);
+                ctx.fillStyle = '#fff';
+                ctx.fillText('Trang chủ', centerX - buttonWidth / 2 - 60, buttonY2 + 32);
+
+                // Button 3: Restart
+                ctx.fillStyle = '#333';
+                ctx.fillRect(centerX - buttonWidth / 2 + 10, buttonY2, 100, buttonHeight);
+                ctx.strokeStyle = '#0f0';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(centerX - buttonWidth / 2 + 10, buttonY2, 100, buttonHeight);
+                ctx.fillStyle = '#fff';
+                ctx.fillText('Chơi lại', centerX - buttonWidth / 2 + 60, buttonY2 + 32);
             }
 
             ctx.restore(); // End screen shake transform
