@@ -125,15 +125,16 @@
             margin: 20px 0;
         }
 
-        /* Mobile Joystick - Even Larger */
+        /* Mobile Joystick - HIDDEN (dùng touch anywhere thay thế) */
         .joystick-container {
+            display: none;
+            /* Ẩn hoàn toàn */
             position: fixed;
             bottom: 20px;
             left: 20px;
             width: 180px;
             /* Tăng từ 150px */
             height: 180px;
-            display: none;
             z-index: 1000;
             touch-action: none;
             /* Prevent scroll on touch */
@@ -404,6 +405,7 @@
         let enemyBullets = [];
         let explosions = [];
         let stars = [];
+        let animationFrameId = null; // Track animation frame để tránh duplicate loop
         let powerUps = [];
 
         // Load game over sound
@@ -451,69 +453,59 @@
             if (e.key === 'ArrowDown') player.moveDown = false;
         });
 
-        // Mobile Joystick Controls
-        const joystickContainer = document.getElementById('joystickContainer');
-        const joystickStick = document.getElementById('joystickStick');
-        let joystickActive = false;
-        let joystickCenter = { x: 0, y: 0 };
+        // ===== MOBILE TOUCH CONTROL (Touch Anywhere) =====
+        let touchActive = false;
+        let touchStartX = 0;
+        let touchStartY = 0;
 
-        function handleJoystickStart(e) {
+        function handleTouchStart(e) {
+            if (game.isPaused || !game.isPlaying) return;
+
             e.preventDefault();
-            joystickActive = true;
-            const rect = joystickContainer.getBoundingClientRect();
-            joystickCenter = {
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2
-            };
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+
+            touchActive = true;
+            touchStartX = (touch.clientX - rect.left) * (canvas.width / rect.width);
+            touchStartY = (touch.clientY - rect.top) * (canvas.height / rect.height);
         }
 
-        function handleJoystickMove(e) {
-            if (!joystickActive) return;
+        function handleTouchMove(e) {
+            if (!touchActive || game.isPaused || !game.isPlaying) return;
+
             e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
 
-            const touch = e.touches ? e.touches[0] : e;
-            const deltaX = touch.clientX - joystickCenter.x;
-            const deltaY = touch.clientY - joystickCenter.y;
+            const touchX = (touch.clientX - rect.left) * (canvas.width / rect.width);
+            const touchY = (touch.clientY - rect.top) * (canvas.height / rect.height);
 
-            // Giới hạn stick trong vòng tròn
-            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            const maxDistance = 60;  // Tăng từ 50 để phù hợp joystick 180px
-            const limitedDist = Math.min(distance, maxDistance);
-            const angle = Math.atan2(deltaY, deltaX);
+            // Calculate direction
+            const deltaX = touchX - player.x;
+            const deltaY = touchY - player.y;
 
-            const stickX = Math.cos(angle) * limitedDist;
-            const stickY = Math.sin(angle) * limitedDist;
-
-            joystickStick.style.transform = `translate(calc(-50% + ${stickX}px), calc(-50% + ${stickY}px))`;
-
-            // Cập nhật player movement - ĐIỀU CHỈNH ĐỘ NHẠY
-            const threshold = 8;  // Tăng threshold để giảm độ nhạy (DPI thấp hơn)
-            player.moveLeft = stickX < -threshold;
-            player.moveRight = stickX > threshold;
-            player.moveUp = stickY < -threshold;
-            player.moveDown = stickY > threshold;
+            // Set movement based on touch position
+            player.moveLeft = deltaX < -10;
+            player.moveRight = deltaX > 10;
+            player.moveUp = deltaY < -10;
+            player.moveDown = deltaY > 10;
         }
 
-        function handleJoystickEnd(e) {
-            e.preventDefault();
-            joystickActive = false;
-            joystickStick.style.transform = 'translate(-50%, -50%)';
-            player.moveLeft = false;
-            player.moveRight = false;
-            player.moveUp = false;
-            player.moveDown = false;
+        function handleTouchEnd(e) {
+            if (e.touches.length === 0) {
+                touchActive = false;
+                player.moveLeft = false;
+                player.moveRight = false;
+                player.moveUp = false;
+                player.moveDown = false;
+            }
         }
 
-        // Touch events
-        joystickContainer.addEventListener('touchstart', handleJoystickStart);
-        joystickContainer.addEventListener('touchmove', handleJoystickMove);
-        joystickContainer.addEventListener('touchend', handleJoystickEnd);
-        joystickContainer.addEventListener('touchcancel', handleJoystickEnd);
-
-        // Mouse events (for testing on desktop)
-        joystickContainer.addEventListener('mousedown', handleJoystickStart);
-        document.addEventListener('mousemove', handleJoystickMove);
-        document.addEventListener('mouseup', handleJoystickEnd);
+        // Canvas touch events
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+        canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
         // Canvas click handler for pause menu buttons
         canvas.addEventListener('click', (e) => {
@@ -587,6 +579,12 @@
             explosions = [];
             powerUps = []; // Clear power-ups
 
+            // Cancel animation frame cũ nếu có
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
             document.getElementById('startScreen').classList.add('hidden');
             spawnWave();
             gameLoop();
@@ -601,10 +599,10 @@
 
                 const bossLevel = Math.floor(game.stage / 10); // Boss level (1, 2, 3...)
 
-                // Boss tăng size theo level
-                const bossSize = 64 + bossLevel * 16; // Wave 10: 80, Wave 20: 96, Wave 30: 112
+                // Boss size giới hạn tối đa 128px (wave 10-40)
+                const bossSize = Math.min(64 + bossLevel * 16, 128); // Wave 10: 80, Wave 20: 96, Wave 30: 112, Wave 40+: 128 (MAX)
 
-                // Boss máu: Wave 10=100, Wave 20=150, Wave 30=200, Wave 40=250...
+                // Boss máu: Wave 10=100, Wave 20=150, Wave 30=200, Wave 40=250... (không giới hạn)
                 const bossHealth = 50 + bossLevel * 50;
                 const bossPoints = 1000 * bossLevel;
 
@@ -1021,8 +1019,21 @@
                             game.score += enemy.points;
                             createExplosion(enemy.x, enemy.y, enemy.color1);
 
-                            // 5% chance drop power-up
-                            if (Math.random() < 0.05) {
+                            // Power-up drop chances
+                            const dropRoll = Math.random();
+
+                            if (dropRoll < 0.01) {
+                                // 1% chance - Health (trái tim)
+                                powerUps.push({
+                                    x: enemy.x,
+                                    y: enemy.y,
+                                    type: 'health',
+                                    width: 20,
+                                    height: 20,
+                                    speed: 2
+                                });
+                            } else if (dropRoll < 0.06) {
+                                // 5% chance - Shield hoặc Triple Shot
                                 const powerUpType = Math.random() < 0.5 ? 'shield' : 'tripleshot';
                                 powerUps.push({
                                     x: enemy.x,
@@ -1077,6 +1088,11 @@
                     } else if (powerUp.type === 'tripleshot') {
                         player.hasTripleShot = true;
                         player.tripleShotEndTime = Date.now() + 10000; // 10s
+                    } else if (powerUp.type === 'health') {
+                        // Tăng 1 mạng (tối đa 3)
+                        if (game.lives < 3) {
+                            game.lives++;
+                        }
                     }
 
                     createExplosion(powerUp.x, powerUp.y, '#ff0');
@@ -1459,7 +1475,13 @@
                     ctx.shadowBlur = 10;
                     ctx.shadowColor = '#ff0';
                     ctx.fillText('⚡', 0, 0);
+                } else if (p.type === 'health') {
+                    ctx.fillStyle = '#f00';
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#f00';
+                    ctx.fillText('❤️', 0, 0);
                 }
+
                 ctx.restore();
             });
 
@@ -1560,7 +1582,14 @@
         }
 
         function gameLoop() {
-            if (!game.isPlaying) return;
+            if (!game.isPlaying) {
+                // Cancel animation frame khi game stop
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                return;
+            }
 
             if (!game.isPaused) {
                 updatePlayer();
@@ -1573,7 +1602,7 @@
             }
 
             draw();
-            requestAnimationFrame(gameLoop);
+            animationFrameId = requestAnimationFrame(gameLoop);
         }
     </script>
 </body>
