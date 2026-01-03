@@ -76,13 +76,14 @@
             margin: 20px 0;
         }
 
-        /* Mobile Joystick */
+        /* Mobile Joystick - Improved */
         .joystick-container {
             position: fixed;
             bottom: 30px;
             left: 30px;
-            width: 120px;
-            height: 120px;
+            width: 150px;
+            /* Tăng từ 120px */
+            height: 150px;
             display: none;
             z-index: 1000;
         }
@@ -97,15 +98,17 @@
         }
 
         .joystick-stick {
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            /* Tăng từ 50px */
+            height: 60px;
             background: #0ff;
             border-radius: 50%;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            box-shadow: 0 0 15px #0ff;
+            box-shadow: 0 0 20px #0ff;
+            /* Tăng glow */
         }
 
         @media (max-width: 768px) {
@@ -197,6 +200,10 @@
         let stars = [];
         let powerUps = [];
 
+        // Load game over sound
+        const gameOverSound = new Audio('game-over-38511.mp3');
+        gameOverSound.volume = 0.5; // 50% volume
+
         // Create stars
         for (let i = 0; i < 80; i++) {
             stars.push({
@@ -258,7 +265,7 @@
 
             // Giới hạn stick trong vòng tròn
             const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            const maxDistance = 35;
+            const maxDistance = 50;  // Tăng từ 35 → dễ điều khiển hơn
             const limitedDist = Math.min(distance, maxDistance);
             const angle = Math.atan2(deltaY, deltaX);
 
@@ -267,8 +274,8 @@
 
             joystickStick.style.transform = `translate(calc(-50% + ${stickX}px), calc(-50% + ${stickY}px))`;
 
-            // Cập nhật player movement
-            const threshold = 10;
+            // Cập nhật player movement - ĐIỀU CHỈNH ĐỘ NHẠY
+            const threshold = 8;  // Tăng threshold để giảm độ nhạy (DPI thấp hơn)
             player.moveLeft = stickX < -threshold;
             player.moveRight = stickX > threshold;
             player.moveUp = stickY < -threshold;
@@ -311,10 +318,16 @@
             game.isPlaying = true;
 
             player.x = canvas.width / 2;
+            player.y = canvas.height - 60;
+            player.hasShield = false;
+            player.shieldHits = 0;
+            player.hasTripleShot = false;
+
             bullets = [];
             enemies = [];
             enemyBullets = [];
             explosions = [];
+            powerUps = []; // Clear power-ups
 
             document.getElementById('startScreen').classList.add('hidden');
             spawnWave();
@@ -370,6 +383,9 @@
             }
 
             // Normal waves
+            game.bossActive = false; // Tắt boss UI cho wave thường
+            game.currentBoss = null;
+
             const totalEnemies = 6 + (game.stage - 1) * 3;
 
             // Đơn giản hóa: xếp hàng ngang với tối đa 10 cột
@@ -727,6 +743,10 @@
             game.isPlaying = false;
             if (game.score > game.highScore) game.highScore = game.score;
 
+            // Play game over sound
+            gameOverSound.currentTime = 0; // Reset to start
+            gameOverSound.play().catch(e => console.log('Audio play failed:', e));
+
             document.getElementById('finalScore').textContent = game.score;
             document.getElementById('finalStage').textContent = game.stage;
             document.getElementById('gameOverScreen').classList.remove('hidden');
@@ -981,8 +1001,8 @@
                 ctx.fillRect(barX, barY + 15, barWidth, barHeight - 10);
 
                 // Health bar fill
-                const healthPercent = boss.health / boss.maxHealth;
-                const healthWidth = barWidth * healthPercent;
+                const healthPercent = boss.health / (boss.maxHealth || boss.health);
+                const healthWidth = barWidth * Math.max(0, Math.min(1, healthPercent));
 
                 // Color gradient based on health
                 if (healthPercent > 0.6) ctx.fillStyle = '#0f0';
@@ -994,7 +1014,8 @@
                 // Health text
                 ctx.font = 'bold 14px Courier';
                 ctx.fillStyle = '#fff';
-                ctx.fillText(`${boss.health} / ${boss.maxHealth}`, canvas.width / 2, barY + 30);
+                const displayMaxHealth = boss.maxHealth || boss.health;
+                ctx.fillText(`${Math.floor(boss.health)} / ${Math.floor(displayMaxHealth)}`, canvas.width / 2, barY + 30);
             }
         }
 
