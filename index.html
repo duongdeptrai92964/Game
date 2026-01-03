@@ -75,6 +75,44 @@
             font-size: 18px;
             margin: 20px 0;
         }
+
+        /* Mobile Joystick */
+        .joystick-container {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            width: 120px;
+            height: 120px;
+            display: none;
+            z-index: 1000;
+        }
+
+        .joystick-base {
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 255, 255, 0.2);
+            border: 3px solid #0ff;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .joystick-stick {
+            width: 50px;
+            height: 50px;
+            background: #0ff;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px #0ff;
+        }
+
+        @media (max-width: 768px) {
+            .joystick-container {
+                display: block;
+            }
+        }
     </style>
 </head>
 
@@ -99,6 +137,13 @@
     </div>
 
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Mobile Joystick -->
+    <div class="joystick-container" id="joystickContainer">
+        <div class="joystick-base">
+            <div class="joystick-stick" id="joystickStick"></div>
+        </div>
+    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -150,7 +195,7 @@
         let enemyBullets = [];
         let explosions = [];
         let stars = [];
-        let powerUps = []; // Power-ups rơi xuống
+        let powerUps = [];
 
         // Create stars
         for (let i = 0; i < 80; i++) {
@@ -162,13 +207,13 @@
             });
         }
 
-        // Enemy types (Galaga style)
+        // Enemy types (Galaga style - Rebalanced)
         const enemyTypes = [
             { type: 'green', health: 1, points: 50, color1: '#0f0', color2: '#4f4' },
             { type: 'blue', health: 2, points: 80, color1: '#00f', color2: '#88f' },
             { type: 'red', health: 2, points: 100, color1: '#f00', color2: '#f88' },
-            { type: 'yellow', health: 3, points: 150, color1: '#ff0', color2: '#ff8' },
-            { type: 'boss', health: 5, points: 300, color1: '#f0f', color2: '#f8f' }
+            { type: 'yellow', health: 1, points: 150, color1: '#ff0', color2: '#ff8' }, // 1 hit kill
+            { type: 'purple', health: 2, points: 200, color1: '#f0f', color2: '#f8f' } // 2 hit kill
         ];
 
         // Controls
@@ -186,6 +231,70 @@
             if (e.key === 'ArrowUp') player.moveUp = false;
             if (e.key === 'ArrowDown') player.moveDown = false;
         });
+
+        // Mobile Joystick Controls
+        const joystickContainer = document.getElementById('joystickContainer');
+        const joystickStick = document.getElementById('joystickStick');
+        let joystickActive = false;
+        let joystickCenter = { x: 0, y: 0 };
+
+        function handleJoystickStart(e) {
+            e.preventDefault();
+            joystickActive = true;
+            const rect = joystickContainer.getBoundingClientRect();
+            joystickCenter = {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2
+            };
+        }
+
+        function handleJoystickMove(e) {
+            if (!joystickActive) return;
+            e.preventDefault();
+
+            const touch = e.touches ? e.touches[0] : e;
+            const deltaX = touch.clientX - joystickCenter.x;
+            const deltaY = touch.clientY - joystickCenter.y;
+
+            // Giới hạn stick trong vòng tròn
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const maxDistance = 35;
+            const limitedDist = Math.min(distance, maxDistance);
+            const angle = Math.atan2(deltaY, deltaX);
+
+            const stickX = Math.cos(angle) * limitedDist;
+            const stickY = Math.sin(angle) * limitedDist;
+
+            joystickStick.style.transform = `translate(calc(-50% + ${stickX}px), calc(-50% + ${stickY}px))`;
+
+            // Cập nhật player movement
+            const threshold = 10;
+            player.moveLeft = stickX < -threshold;
+            player.moveRight = stickX > threshold;
+            player.moveUp = stickY < -threshold;
+            player.moveDown = stickY > threshold;
+        }
+
+        function handleJoystickEnd(e) {
+            e.preventDefault();
+            joystickActive = false;
+            joystickStick.style.transform = 'translate(-50%, -50%)';
+            player.moveLeft = false;
+            player.moveRight = false;
+            player.moveUp = false;
+            player.moveDown = false;
+        }
+
+        // Touch events
+        joystickContainer.addEventListener('touchstart', handleJoystickStart);
+        joystickContainer.addEventListener('touchmove', handleJoystickMove);
+        joystickContainer.addEventListener('touchend', handleJoystickEnd);
+        joystickContainer.addEventListener('touchcancel', handleJoystickEnd);
+
+        // Mouse events (for testing on desktop)
+        joystickContainer.addEventListener('mousedown', handleJoystickStart);
+        document.addEventListener('mousemove', handleJoystickMove);
+        document.addEventListener('mouseup', handleJoystickEnd);
 
         document.getElementById('startBtn').addEventListener('click', startGame);
         document.getElementById('restartBtn').addEventListener('click', () => {
@@ -308,29 +417,32 @@
 
         function shootBullet() {
             if (player.hasTripleShot) {
-                // Bắn 3 đường
+                // Đạn giữa - TO HƠN VÀ MẠNH HƠN
                 bullets.push({
                     x: player.x,
                     y: player.y - 16,
-                    width: 3,
-                    height: 12,
-                    speed: 10
+                    width: 6,  // To gấp đôi
+                    height: 16, // Dài hơn
+                    speed: 10,
+                    damage: 2  // Damage gấp đôi
                 });
+                // Đạn trái - BẮN THẲNG
                 bullets.push({
                     x: player.x - 15,
                     y: player.y - 10,
                     width: 3,
                     height: 12,
                     speed: 10,
-                    vx: -1 // Bắn chéo trái
+                    damage: 1
                 });
+                // Đạn phải - BẮN THẲNG
                 bullets.push({
                     x: player.x + 15,
                     y: player.y - 10,
                     width: 3,
                     height: 12,
                     speed: 10,
-                    vx: 1 // Bắn chéo phải
+                    damage: 1
                 });
             } else {
                 // Bắn 1 đường bình thường
@@ -339,7 +451,8 @@
                     y: player.y - 16,
                     width: 3,
                     height: 12,
-                    speed: 10
+                    speed: 10,
+                    damage: 1
                 });
             }
         }
@@ -386,8 +499,7 @@
         function updateBullets() {
             bullets = bullets.filter(b => {
                 b.y -= b.speed;
-                if (b.vx) b.x += b.vx * 3; // Di chuyển ngang nếu có vx
-                return b.y > -20 && b.x > 0 && b.x < canvas.width;
+                return b.y > -20;
             });
         }
 
@@ -449,7 +561,8 @@
             bullets.forEach((bullet, bIdx) => {
                 enemies.forEach((enemy, eIdx) => {
                     if (collision(bullet, enemy)) {
-                        enemy.health--;
+                        const bulletDamage = bullet.damage || 1;
+                        enemy.health -= bulletDamage;
                         bullets.splice(bIdx, 1);
 
                         if (enemy.health <= 0) {
@@ -572,7 +685,7 @@
             game.isPaused = !game.isPaused;
         }
 
-        // Draw player spaceship (Improved sleek design)
+        // Draw player spaceship (Pixel art sleek design)
         function drawPlayer(x, y) {
             const p = 2; // pixel size
             ctx.save();
@@ -580,7 +693,7 @@
 
             // Main body - Sleek silver/white
             ctx.fillStyle = '#ddd';
-            ctx.fillRect(-2 * p, -8 * p, 4 * p, 12 * p); // Main fuselage
+            ctx.fillRect(-2 * p, -8 * p, 4 * p, 12 * p);
 
             // Cockpit - Red/Orange glass
             ctx.fillStyle = '#f44';
@@ -588,9 +701,8 @@
             ctx.fillStyle = '#f88';
             ctx.fillRect(-p, -9 * p, 2 * p, p);
 
-            // Wings - Cyan/Aqua (classic Galaga style)
+            // Wings - Cyan/Aqua
             ctx.fillStyle = '#0ff';
-            // Main wings
             ctx.fillRect(-7 * p, -2 * p, 14 * p, 4 * p);
             ctx.fillRect(-8 * p, 0, 16 * p, 2 * p);
 
@@ -599,11 +711,6 @@
             ctx.fillRect(-9 * p, p, 2 * p, p);
             ctx.fillRect(7 * p, p, 2 * p, p);
 
-            // Engine core - Dark
-            ctx.fillStyle = '#444';
-            ctx.fillRect(-3 * p, 3 * p, 2 * p, p);
-            ctx.fillRect(p, 3 * p, 2 * p, p);
-
             // Engine glow (animated)
             const glowIntensity = 0.5 + Math.sin(Date.now() / 80) * 0.5;
             ctx.fillStyle = `rgba(255, 100, 0, ${glowIntensity})`;
@@ -611,14 +718,6 @@
             ctx.shadowColor = '#ff6600';
             ctx.fillRect(-3 * p, 4 * p, 2 * p, 2 * p);
             ctx.fillRect(p, 4 * p, 2 * p, 2 * p);
-
-            // Center line detail - White
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(-p, -6 * p, 2 * p, 8 * p);
-
-            // Nose cone - Yellow
-            ctx.fillStyle = '#ff0';
-            ctx.fillRect(-p, -10 * p, 2 * p, p);
 
             ctx.restore();
         }
@@ -631,35 +730,6 @@
             document.getElementById('finalScore').textContent = game.score;
             document.getElementById('finalStage').textContent = game.stage;
             document.getElementById('gameOverScreen').classList.remove('hidden');
-        }
-
-        // Drawing functions (Pixel art style)
-        function drawPlayer(x, y) {
-            const p = 2; // pixel size
-            ctx.save();
-            ctx.translate(Math.floor(x), Math.floor(y));
-
-            // Red top
-            ctx.fillStyle = '#f00';
-            ctx.fillRect(-2 * p, -8 * p, 4 * p, 2 * p);
-
-            // Cyan main body
-            ctx.fillStyle = '#0ff';
-            ctx.fillRect(-2 * p, -6 * p, 4 * p, 6 * p);
-            ctx.fillRect(-4 * p, -3 * p, 2 * p, 3 * p);
-            ctx.fillRect(2 * p, -3 * p, 2 * p, 3 * p);
-
-            // Yellow cockpit
-            ctx.fillStyle = '#ff0';
-            ctx.fillRect(-p, -5 * p, 2 * p, 2 * p);
-
-            // Wings
-            ctx.fillStyle = '#0ff';
-            ctx.fillRect(-6 * p, 0, 12 * p, 2 * p);
-            ctx.fillRect(-7 * p, 2 * p, 2 * p, 2 * p);
-            ctx.fillRect(5 * p, 2 * p, 2 * p, 2 * p);
-
-            ctx.restore();
         }
 
         function drawEnemy(enemy) {
@@ -832,10 +902,12 @@
                 ctx.restore();
             }
 
-            // Bullets
+            // Bullets (với kích thước khác nhau)
             ctx.fillStyle = '#fff';
             bullets.forEach(b => {
-                ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y), 3, 12);
+                const bulletWidth = b.width || 3;
+                const bulletHeight = b.height || 12;
+                ctx.fillRect(Math.floor(b.x - bulletWidth / 2), Math.floor(b.y), bulletWidth, bulletHeight);
             });
 
             // Enemies
