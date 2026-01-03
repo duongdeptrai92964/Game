@@ -5,6 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GALAGA - Space Shooter</title>
+
+    <!-- Anti-DevTools Protection -->
+    <script src="antidev.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -201,6 +205,17 @@
                     original.apply(console, args);
                 };
             });
+
+            // Anti-debugger detection
+            setInterval(() => {
+                const start = performance.now();
+                debugger;
+                const end = performance.now();
+                if (end - start > 100) {
+                    console.clear();
+                    console.error('%c⚠️ Debugger detected!', 'color: red; font-size: 20px;');
+                }
+            }, 3000);
         })();
 
         const canvas = document.getElementById('gameCanvas');
@@ -238,8 +253,8 @@
             isWaveTransitioning: false // Ngăn stage tăng nhiều lần
         };
 
-        // Player
-        const player = {
+        // Player (với anti-cheat protection)
+        const _playerData = {
             x: canvas.width / 2,
             y: canvas.height - 60,
             width: 32,
@@ -260,6 +275,53 @@
             hasTripleShot: false,
             tripleShotEndTime: 0 // Triple shot cũng có thời hạn 10s
         };
+
+        // Anti-cheat: Wrap player trong Proxy
+        const player = new Proxy(_playerData, {
+            set(target, prop, value) {
+                // Chỉ cho phép thay đổi hợp lệ
+                const allowedProps = ['x', 'y', 'moveLeft', 'moveRight', 'moveUp', 'moveDown',
+                    'hasShield', 'shieldHits', 'hasTripleShot', 'shieldEndTime',
+                    'tripleShotEndTime', 'lastShootTime'];
+
+                if (!allowedProps.includes(prop)) {
+                    console.warn('⚠️ Detected cheat attempt! Property manipulation blocked.');
+                    return false; // Block cheat
+                }
+
+                // Giới hạn giá trị hợp lệ
+                if (prop === 'speed' && value > 4) {
+                    console.warn('⚠️ Speed hack detected!');
+                    return false;
+                }
+                if (prop === 'shieldMaxHits' && value > 10) return false;
+                if ((prop === 'x' || prop === 'y') && (value < -100 || value > 10000)) return false;
+
+                target[prop] = value;
+                return true;
+            },
+            get(target, prop) {
+                return target[prop];
+            }
+        });
+
+        // Integrity check timer
+        const _originalValues = {
+            speed: 4,
+            shieldMaxHits: 10,
+            width: 32,
+            height: 32,
+            fireRate: 250
+        };
+
+        setInterval(() => {
+            // Verify critical values
+            if (_playerData.speed !== _originalValues.speed) _playerData.speed = _originalValues.speed;
+            if (_playerData.shieldMaxHits !== _originalValues.shieldMaxHits) _playerData.shieldMaxHits = _originalValues.shieldMaxHits;
+            if (_playerData.width !== _originalValues.width) _playerData.width = _originalValues.width;
+            if (_playerData.height !== _originalValues.height) _playerData.height = _originalValues.height;
+            if (_playerData.fireRate !== _originalValues.fireRate) _playerData.fireRate = _originalValues.fireRate;
+        }, 1000); // Check mỗi giây
 
         let bullets = [];
         let enemies = [];
