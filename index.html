@@ -27,6 +27,16 @@
             image-rendering: crisp-edges;
         }
 
+        /* Responsive chỉ cho mobile */
+        @media (max-width: 768px) {
+            #gameCanvas {
+                max-width: 100%;
+                max-height: 100vh;
+                width: 100%;
+                height: auto;
+            }
+        }
+
         .screen-overlay {
             position: fixed;
             top: 0;
@@ -76,16 +86,18 @@
             margin: 20px 0;
         }
 
-        /* Mobile Joystick - Improved */
+        /* Mobile Joystick - Even Larger */
         .joystick-container {
             position: fixed;
-            bottom: 30px;
-            left: 30px;
-            width: 150px;
-            /* Tăng từ 120px */
-            height: 150px;
+            bottom: 20px;
+            left: 20px;
+            width: 180px;
+            /* Tăng từ 150px */
+            height: 180px;
             display: none;
             z-index: 1000;
+            touch-action: none;
+            /* Prevent scroll on touch */
         }
 
         .joystick-base {
@@ -98,17 +110,19 @@
         }
 
         .joystick-stick {
-            width: 60px;
-            /* Tăng từ 50px */
-            height: 60px;
+            width: 70px;
+            /* Tăng từ 60px */
+            height: 70px;
             background: #0ff;
             border-radius: 50%;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            box-shadow: 0 0 20px #0ff;
+            box-shadow: 0 0 25px #0ff;
             /* Tăng glow */
+            transition: transform 0.05s ease-out;
+            /* Smooth movement */
         }
 
         @media (max-width: 768px) {
@@ -149,11 +163,65 @@
     </div>
 
     <script>
+        // Anti-paste protection cho console
+        (function () {
+            const isDevToolsOpen = () => {
+                const threshold = 160;
+                return window.outerWidth - window.innerWidth > threshold ||
+                    window.outerHeight - window.innerHeight > threshold;
+            };
+
+            // Warning message
+            const showConsoleWarning = () => {
+                console.log('%c⛔ DỪNG LẠI! ⛔', 'color: red; font-size: 50px; font-weight: bold;');
+                console.log('%c⚠️ Cảnh báo bảo mật', 'color: yellow; font-size: 30px;');
+                console.log('%cĐây là tính năng dành cho developers. Nếu ai đó bảo bạn copy/paste code vào đây, đó là LỪA ĐẢO!', 'font-size: 16px;');
+                console.log('%cDán code vào đây có thể cho phép kẻ xấu đánh cắp tài khoản hoặc cheat game!', 'color: red; font-size: 14px;');
+            };
+
+            // Block paste in console
+            const originalLog = console.log;
+            let warned = false;
+
+            setInterval(() => {
+                if (isDevToolsOpen() && !warned) {
+                    showConsoleWarning();
+                    warned = true;
+                }
+            }, 1000);
+
+            // Override console methods to show warning
+            ['log', 'warn', 'error', 'info'].forEach(method => {
+                const original = console[method];
+                console[method] = function (...args) {
+                    if (!warned && isDevToolsOpen()) {
+                        showConsoleWarning();
+                        warned = true;
+                    }
+                    original.apply(console, args);
+                };
+            });
+        })();
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        canvas.width = 800;
-        canvas.height = 600;
+        // Responsive canvas sizing
+        function resizeCanvas() {
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+                // Mobile: full width, maintain aspect ratio
+                canvas.width = Math.min(window.innerWidth, 600);
+                canvas.height = Math.min(window.innerHeight, 800);
+            } else {
+                // Desktop: fixed size
+                canvas.width = 800;
+                canvas.height = 600;
+            }
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
 
         // Game state
         const game = {
@@ -214,13 +282,19 @@
             });
         }
 
-        // Enemy types (Galaga style - Rebalanced)
+        // Enemy types (Expanded - More Variety)
         const enemyTypes = [
-            { type: 'green', health: 1, points: 50, color1: '#0f0', color2: '#4f4' },
-            { type: 'blue', health: 2, points: 80, color1: '#00f', color2: '#88f' },
-            { type: 'red', health: 2, points: 100, color1: '#f00', color2: '#f88' },
-            { type: 'yellow', health: 1, points: 150, color1: '#ff0', color2: '#ff8' }, // 1 hit kill
-            { type: 'purple', health: 2, points: 200, color1: '#f0f', color2: '#f8f' } // 2 hit kill
+            { type: 'green', health: 1, points: 50, color1: '#0f0', color2: '#4f4' },        // Xanh lá
+            { type: 'lime', health: 1, points: 60, color1: '#0ff', color2: '#8ff' },         // Xanh lơ - Mới
+            { type: 'blue', health: 2, points: 80, color1: '#00f', color2: '#88f' },         // Xanh dương
+            { type: 'cyan', health: 2, points: 90, color1: '#0cf', color2: '#6ff' },         // Xanh cyan - Mới
+            { type: 'red', health: 2, points: 100, color1: '#f00', color2: '#f88' },         // Đỏ
+            { type: 'orange', health: 3, points: 120, color1: '#f80', color2: '#fc8' },      // Cam - Mới
+            { type: 'yellow', health: 1, points: 150, color1: '#ff0', color2: '#ff8' },      // Vàng - 1 hit
+            { type: 'purple', health: 2, points: 200, color1: '#f0f', color2: '#f8f' },      // Tím - 2 hit
+            { type: 'pink', health: 3, points: 250, color1: '#f08', color2: '#f8c' },        // Hồng - Mới
+            { type: 'white', health: 4, points: 300, color1: '#fff', color2: '#ddd' },       // Trắng - Mới, khó nhất
+            { type: 'kamikaze', health: 1, points: 180, color1: '#a00', color2: '#f00', isKamikaze: true }  // KAMIKAZE - Tự sát!
         ];
 
         // Controls
@@ -265,7 +339,7 @@
 
             // Giới hạn stick trong vòng tròn
             const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            const maxDistance = 50;  // Tăng từ 35 → dễ điều khiển hơn
+            const maxDistance = 60;  // Tăng từ 50 để phù hợp joystick 180px
             const limitedDist = Math.min(distance, maxDistance);
             const angle = Math.atan2(deltaY, deltaX);
 
@@ -346,8 +420,8 @@
                 // Boss tăng size theo level
                 const bossSize = 64 + bossLevel * 16; // Wave 10: 80, Wave 20: 96, Wave 30: 112
 
-                // Boss máu tăng nhiều hơn: 30, 50, 80, 120, 170...
-                const bossHealth = 20 + bossLevel * 20 + (bossLevel - 1) * 10;
+                // Boss máu: Wave 10=100, Wave 20=150, Wave 30=200, Wave 40=250...
+                const bossHealth = 50 + bossLevel * 50;
                 const bossPoints = 1000 * bossLevel;
 
                 const boss = {
@@ -360,7 +434,7 @@
                     angle: 0,
                     movePhase: 'boss',
                     isBoss: true,
-                    bossLevel: bossLevel, // Để vẽ boss to hơn
+                    bossLevel: bossLevel,
                     emoji: '👾',
                     health: bossHealth,
                     maxHealth: bossHealth,
@@ -368,7 +442,12 @@
                     points: bossPoints,
                     color1: '#f0f',
                     color2: '#f8f',
-                    shootTimer: 0
+                    shootTimer: 0,
+                    // Boss abilities
+                    summonTimer: 0,
+                    throwTimer: 0,
+                    lastSummonTime: 0,
+                    lastThrowTime: 0
                 };
 
                 enemies.push(boss);
@@ -386,7 +465,7 @@
             game.bossActive = false; // Tắt boss UI cho wave thường
             game.currentBoss = null;
 
-            const totalEnemies = 6 + (game.stage - 1) * 3;
+            const totalEnemies = Math.min(6 + (game.stage - 1) * 3, 40);  // CAP TẠI 40
 
             // Đơn giản hóa: xếp hàng ngang với tối đa 10 cột
             const cols = Math.min(totalEnemies, 10);
@@ -521,7 +600,79 @@
 
         function updateEnemies() {
             enemies.forEach(enemy => {
-                // Boss di chuyển và bắn khác
+                // KAMIKAZE - Lao vào player và tự nổ!
+                if (enemy.isKamikaze) {
+                    // Check nếu đang trong warning phase (nhấp nháy)
+                    if (enemy.exploding) {
+                        enemy.explodeTimer = (enemy.explodeTimer || 0) + 1;
+
+                        // Sau 60 frames (1 giây) → EXPLODE!
+                        if (enemy.explodeTimer >= 60) {
+                            // Kiểm tra player có trong blast radius không
+                            const dx = player.x - enemy.x;
+                            const dy = player.y - enemy.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+
+                            if (distance < 80) { // Explosion radius
+                                // Player bị damage!
+                                if (player.hasShield && player.shieldHits < player.shieldMaxHits) {
+                                    player.shieldHits++;
+                                    if (player.shieldHits >= player.shieldMaxHits) {
+                                        player.hasShield = false;
+                                    }
+                                } else {
+                                    playerHit();
+                                }
+                            }
+
+                            // Tạo explosion visual
+                            createExplosion(enemy.x, enemy.y, '#f00');
+                            createExplosion(enemy.x, enemy.y, '#ff0');
+
+                            // Hiển thị blast zone
+                            explosions.push({
+                                x: enemy.x,
+                                y: enemy.y,
+                                isBlastZone: true,
+                                radius: 80,
+                                life: 30, // Hiển thị 0.5s
+                                color: '#f00'
+                            });
+
+                            // Mark để xóa
+                            enemy.health = 0;
+                        }
+                        return; // Đứng yên khi exploding
+                    }
+
+                    // Tính hướng đến player
+                    const dx = player.x - enemy.x;
+                    const dy = player.y - enemy.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    // Nếu đến gần player → bắt đầu warning (hoặc nổ ngay nếu bị ném)
+                    if (distance < 100) {
+                        if (enemy.isThrownKamikaze) {
+                            // NỔ NGAY - không có warning!
+                            enemy.exploding = true;
+                            enemy.explodeTimer = 60; // Set max để nổ ngay
+                        } else {
+                            // Kamikaze thường - warning 1s
+                            enemy.exploding = true;
+                            enemy.explodeTimer = 0;
+                        }
+                        return;
+                    }
+
+                    // Lao về phía player
+                    const speed = 3;
+                    enemy.x += (dx / distance) * speed;
+                    enemy.y += (dy / distance) * speed;
+
+                    return;
+                }
+
+                // Boss di chuyển và chiêu thức đặc biệt
                 if (enemy.isBoss) {
                     enemy.angle += 0.03;
                     enemy.x = enemy.startX + Math.sin(enemy.angle) * 150;
@@ -542,6 +693,64 @@
                             });
                         }
                     }
+
+                    // ABILITY 1: Triệu hồi minions (mỗi 8 giây)
+                    enemy.summonTimer++;
+                    if (enemy.summonTimer > 480 && enemies.length < 10) { // Giới hạn 10 enemies
+                        enemy.summonTimer = 0;
+
+                        // Triệu hồi 3 con quái nhỏ
+                        for (let i = 0; i < 3; i++) {
+                            const minionType = enemyTypes[Math.floor(Math.random() * 5)]; // Random 5 loại yếu
+                            enemies.push({
+                                x: enemy.x + (i - 1) * 50,
+                                y: enemy.y + 50,
+                                startX: enemy.x + (i - 1) * 50,
+                                startY: enemy.y + 50,
+                                width: 32,
+                                height: 32,
+                                angle: Math.random() * Math.PI * 2,
+                                movePhase: 'idle',
+                                ...minionType,
+                                maxHealth: minionType.health,
+                                shootTimer: Math.random() * 300
+                            });
+                        }
+
+                        // Visual cue
+                        createExplosion(enemy.x, enemy.y, '#f0f');
+                    }
+
+                    // ABILITY 2: Ném kamikaze vào player (mỗi 10 giây)
+                    enemy.throwTimer++;
+                    if (enemy.throwTimer > 600) {
+                        enemy.throwTimer = 0;
+
+                        // Tạo kamikaze bị ném
+                        enemies.push({
+                            x: enemy.x,
+                            y: enemy.y + 30,
+                            startX: enemy.x,
+                            startY: enemy.y + 30,
+                            width: 32,
+                            height: 32,
+                            angle: 0,
+                            movePhase: 'idle',
+                            type: 'kamikaze',
+                            isKamikaze: true,
+                            isThrownKamikaze: true, // Đặc biệt - nổ ngay!
+                            health: 1,
+                            maxHealth: 1,
+                            points: 180,
+                            color1: '#a00',
+                            color2: '#f00',
+                            shootTimer: 0
+                        });
+
+                        // Visual cue
+                        createExplosion(enemy.x, enemy.y, '#f00');
+                    }
+
                     return;
                 }
 
@@ -550,17 +759,60 @@
                 enemy.x = enemy.startX + Math.sin(enemy.angle) * 30;
                 enemy.y = enemy.startY + Math.cos(enemy.angle * 0.5) * 10;
 
-                // Enemy shooting (giảm tần suất bắn)
+                // Enemy shooting - VARIED BY TYPE
                 enemy.shootTimer++;
-                if (enemy.shootTimer > 300 + Math.random() * 200) { // Tăng từ 150->300
+
+                // Xác định tốc độ bắn dựa trên loại quái
+                let shootInterval = 300;
+                let bulletSpeed = 4;
+                let bulletCount = 1;
+
+                if (enemy.type === 'white' || enemy.type === 'pink') {
+                    // Quái mạnh nhất - bắn nhanh, 2 viên, đạn nhanh
+                    shootInterval = 180;
+                    bulletSpeed = 5.5;
+                    bulletCount = 2;
+                } else if (enemy.type === 'orange' || enemy.type === 'purple') {
+                    // Quái mạnh - bắn nhanh hơn
+                    shootInterval = 220;
+                    bulletSpeed = 5;
+                } else if (enemy.type === 'yellow') {
+                    // Yellow nhanh
+                    shootInterval = 240;
+                    bulletSpeed = 4.5;
+                }
+
+                if (enemy.shootTimer > shootInterval + Math.random() * 150) {
                     enemy.shootTimer = 0;
-                    enemyBullets.push({
-                        x: enemy.x,
-                        y: enemy.y + 16,
-                        width: 3,
-                        height: 10,
-                        speed: 4
-                    });
+
+                    // Bắn nhiều viên nếu là quái mạnh
+                    if (bulletCount === 2) {
+                        enemyBullets.push({
+                            x: enemy.x - 10,
+                            y: enemy.y + 16,
+                            width: 3,
+                            height: 10,
+                            speed: bulletSpeed,
+                            color: enemy.color1
+                        });
+                        enemyBullets.push({
+                            x: enemy.x + 10,
+                            y: enemy.y + 16,
+                            width: 3,
+                            height: 10,
+                            speed: bulletSpeed,
+                            color: enemy.color1
+                        });
+                    } else {
+                        enemyBullets.push({
+                            x: enemy.x,
+                            y: enemy.y + 16,
+                            width: 3,
+                            height: 10,
+                            speed: bulletSpeed,
+                            color: enemy.color1
+                        });
+                    }
                 }
             });
         }
@@ -802,6 +1054,45 @@
                 return;
             }
 
+            // KAMIKAZE - Vẽ với nhấp nháy khi exploding
+            if (enemy.isKamikaze) {
+                // Nhấp nháy nếu đang exploding
+                if (enemy.exploding) {
+                    const flickerSpeed = 100; // Nhấp nháy nhanh
+                    const flicker = Math.floor(Date.now() / flickerSpeed) % 2;
+                    if (flicker === 0) {
+                        ctx.globalAlpha = 0.3; // Mờ đi
+                    }
+
+                    // Vẽ warning circle
+                    ctx.strokeStyle = '#f00';
+                    ctx.lineWidth = 3;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#f00';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 40, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Body - Hình tam giác đỏ (như rocket)
+                ctx.fillStyle = c1;
+                ctx.beginPath();
+                ctx.moveTo(0, -6 * p);  // Top
+                ctx.lineTo(-3 * p, 4 * p); // Bottom left
+                ctx.lineTo(3 * p, 4 * p);  // Bottom right
+                ctx.closePath();
+                ctx.fill();
+
+                // Flame effect ở đuôi
+                const flameFlicker = Math.sin(Date.now() / 50);
+                ctx.fillStyle = `rgba(255, ${100 + flameFlicker * 50}, 0, 0.8)`;
+                ctx.fillRect(-2 * p, 4 * p, 4 * p, 3 * p);
+
+                ctx.globalAlpha = 1; // Reset alpha
+                ctx.restore();
+                return;
+            }
+
             // Normal enemy (Butterfly/insect shape - Galaga style)
             // Body
             ctx.fillStyle = c1;
@@ -933,18 +1224,38 @@
             // Enemies
             enemies.forEach(drawEnemy);
 
-            // Enemy bullets
-            ctx.fillStyle = '#f0f';
+            // Enemy bullets (colored by enemy type)
             enemyBullets.forEach(b => {
+                ctx.fillStyle = b.color || '#f0f'; // Màu theo loại quái
                 ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y), 3, 10);
             });
 
-            // Explosions
+            // Explosions & Blast Zones
             explosions.forEach(exp => {
-                ctx.fillStyle = exp.color;
-                ctx.globalAlpha = exp.life / 30;
-                ctx.fillRect(Math.floor(exp.x - 2), Math.floor(exp.y - 2), 4, 4);
-                ctx.globalAlpha = 1;
+                if (exp.isBlastZone) {
+                    // Vẽ blast zone circle
+                    ctx.save();
+                    ctx.strokeStyle = exp.color;
+                    ctx.lineWidth = 4;
+                    ctx.globalAlpha = exp.life / 30;
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = exp.color;
+                    ctx.beginPath();
+                    ctx.arc(Math.floor(exp.x), Math.floor(exp.y), exp.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // Fill semi-transparent
+                    ctx.fillStyle = exp.color;
+                    ctx.globalAlpha = (exp.life / 30) * 0.2;
+                    ctx.fill();
+                    ctx.restore();
+                } else {
+                    // Normal explosion particles
+                    ctx.fillStyle = exp.color;
+                    ctx.globalAlpha = exp.life / 30;
+                    ctx.fillRect(Math.floor(exp.x - 2), Math.floor(exp.y - 2), 4, 4);
+                    ctx.globalAlpha = 1;
+                }
             });
 
             // Power-ups
