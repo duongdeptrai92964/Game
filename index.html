@@ -662,28 +662,57 @@
             let enemyCount = 0;
             for (let row = 0; row < rows && enemyCount < totalEnemies; row++) {
                 for (let col = 0; col < cols && enemyCount < totalEnemies; col++) {
-                    let typeIndex;
-                    if (row === 0) typeIndex = 3; // Yellow (top row)
-                    else if (row <= 2) typeIndex = 2; // Red
-                    else if (row <= 4) typeIndex = 1; // Blue
-                    else typeIndex = 0; // Green
+                    // KAMIKAZE SPAWN: Wave 5+ có 10% chance spawn kamikaze
+                    const isKamikazeWave = game.stage >= 5;
+                    const spawnKamikaze = isKamikazeWave && Math.random() < 0.1; // 10% chance
 
-                    // Tăng độ khó theo stage
-                    const type = enemyTypes[Math.min(typeIndex + Math.floor(game.stage / 3), enemyTypes.length - 1)];
+                    if (spawnKamikaze) {
+                        // Spawn kamikaze enemy
+                        enemies.push({
+                            x: startX + col * spacing,
+                            y: startY + row * spacing,
+                            startX: startX + col * spacing,
+                            startY: startY + row * spacing,
+                            width: 32,
+                            height: 32,
+                            angle: 0,
+                            movePhase: 'charging', // Sẵn sàng lao xuống
+                            type: 'kamikaze',
+                            isKamikaze: true,
+                            isThrownKamikaze: false,
+                            health: 1,
+                            maxHealth: 1,
+                            points: 150,
+                            color1: '#a00',
+                            color2: '#f00',
+                            shootTimer: 0,
+                            warningTimer: 0
+                        });
+                    } else {
+                        // Normal enemy spawn
+                        let typeIndex;
+                        if (row === 0) typeIndex = 3; // Yellow (top row)
+                        else if (row <= 2) typeIndex = 2; // Red
+                        else if (row <= 4) typeIndex = 1; // Blue
+                        else typeIndex = 0; // Green
 
-                    enemies.push({
-                        x: startX + col * spacing,
-                        y: startY + row * spacing,
-                        startX: startX + col * spacing,
-                        startY: startY + row * spacing,
-                        width: 32,
-                        height: 32,
-                        angle: (col + row) * 0.5,
-                        movePhase: 'idle',
-                        ...type,
-                        maxHealth: type.health,
-                        shootTimer: Math.random() * 400 // Tăng delay bắn (chậm hơn)
-                    });
+                        // Tăng độ khó theo stage
+                        const type = enemyTypes[Math.min(typeIndex + Math.floor(game.stage / 3), enemyTypes.length - 1)];
+
+                        enemies.push({
+                            x: startX + col * spacing,
+                            y: startY + row * spacing,
+                            startX: startX + col * spacing,
+                            startY: startY + row * spacing,
+                            width: 32,
+                            height: 32,
+                            angle: (col + row) * 0.5,
+                            movePhase: 'idle',
+                            ...type,
+                            maxHealth: type.health,
+                            shootTimer: Math.random() * 400 // Tăng delay bắn (chậm hơn)
+                        });
+                    }
 
                     enemyCount++;
                 }
@@ -903,9 +932,9 @@
                         createExplosion(enemy.x, enemy.y, '#f0f');
                     }
 
-                    // ABILITY 2: Ném kamikaze vào player (mỗi 10 giây)
+                    // ABILITY 2: Ném kamikaze vào player (mỗi 5 giây - TĂNG TẦN SUẤT)
                     enemy.throwTimer++;
-                    if (enemy.throwTimer > 600) {
+                    if (enemy.throwTimer > 300) { // Giảm từ 600 → 300 (5s thay vì 10s)
                         enemy.throwTimer = 0;
 
                         // Tạo kamikaze bị ném
