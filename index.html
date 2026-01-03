@@ -527,9 +527,13 @@
 
             const buttonWidth = 200;
             const buttonHeight = 50;
+            const smallButtonWidth = 95;
             const centerX = canvas.width / 2;
             const buttonY1 = canvas.height / 2 + 20;
             const buttonY2 = canvas.height / 2 + 90;
+            const buttonGap = 10;
+            const totalWidth = smallButtonWidth * 2 + buttonGap;
+            const startX = centerX - totalWidth / 2;
 
             // Check Continue button
             if (x >= centerX - buttonWidth / 2 && x <= centerX + buttonWidth / 2 &&
@@ -538,7 +542,7 @@
             }
 
             // Check Home button
-            if (x >= centerX - buttonWidth / 2 - 110 && x <= centerX - buttonWidth / 2 - 10 &&
+            if (x >= startX && x <= startX + smallButtonWidth &&
                 y >= buttonY2 && y <= buttonY2 + buttonHeight) {
                 // Go to home
                 game.isPaused = false;
@@ -548,7 +552,8 @@
             }
 
             // Check Restart button
-            if (x >= centerX - buttonWidth / 2 + 10 && x <= centerX - buttonWidth / 2 + 110 &&
+            if (x >= startX + smallButtonWidth + buttonGap &&
+                x <= startX + smallButtonWidth + buttonGap + smallButtonWidth &&
                 y >= buttonY2 && y <= buttonY2 + buttonHeight) {
                 // Restart game
                 game.isPaused = false;
@@ -1473,9 +1478,11 @@
                 // Buttons
                 const buttonWidth = 200;
                 const buttonHeight = 50;
+                const smallButtonWidth = 95;
                 const centerX = canvas.width / 2;
                 const buttonY1 = canvas.height / 2 + 20;
                 const buttonY2 = canvas.height / 2 + 90;
+                const buttonGap = 10;
 
                 // Button 1: Continue (P to resume)
                 ctx.fillStyle = '#333';
@@ -1487,23 +1494,26 @@
                 ctx.fillStyle = '#fff';
                 ctx.fillText('Tiếp tục (P)', centerX, buttonY1 + 32);
 
-                // Button 2: Home
+                // Button 2: Home (left button, centered together)
+                const totalWidth = smallButtonWidth * 2 + buttonGap;
+                const startX = centerX - totalWidth / 2;
+
                 ctx.fillStyle = '#333';
-                ctx.fillRect(centerX - buttonWidth / 2 - 110, buttonY2, 100, buttonHeight);
+                ctx.fillRect(startX, buttonY2, smallButtonWidth, buttonHeight);
                 ctx.strokeStyle = '#f00';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(centerX - buttonWidth / 2 - 110, buttonY2, 100, buttonHeight);
+                ctx.strokeRect(startX, buttonY2, smallButtonWidth, buttonHeight);
                 ctx.fillStyle = '#fff';
-                ctx.fillText('Trang chủ', centerX - buttonWidth / 2 - 60, buttonY2 + 32);
+                ctx.fillText('Trang chủ', startX + smallButtonWidth / 2, buttonY2 + 32);
 
-                // Button 3: Restart
+                // Button 3: Restart (right button)
                 ctx.fillStyle = '#333';
-                ctx.fillRect(centerX - buttonWidth / 2 + 10, buttonY2, 100, buttonHeight);
+                ctx.fillRect(startX + smallButtonWidth + buttonGap, buttonY2, smallButtonWidth, buttonHeight);
                 ctx.strokeStyle = '#0f0';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(centerX - buttonWidth / 2 + 10, buttonY2, 100, buttonHeight);
+                ctx.strokeRect(startX + smallButtonWidth + buttonGap, buttonY2, smallButtonWidth, buttonHeight);
                 ctx.fillStyle = '#fff';
-                ctx.fillText('Chơi lại', centerX - buttonWidth / 2 + 60, buttonY2 + 32);
+                ctx.fillText('Chơi lại', startX + smallButtonWidth + buttonGap + smallButtonWidth / 2, buttonY2 + 32);
             }
 
             ctx.restore(); // End screen shake transform
